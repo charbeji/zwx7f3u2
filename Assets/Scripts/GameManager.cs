@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,6 +8,9 @@ using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
+    [Header("UI")]
+    public TMP_Text comboText;  
+
     [Header("Card Sprites")]
     public Sprite[] cardFrontSprites; // 15 sprites
     public Sprite cardBackSprite;     // 1 back sprite
@@ -30,11 +33,14 @@ public class GameManager : MonoBehaviour
     private int rows, columns;
     private int score = 0;
     private int turns = 0;
-    
+    private int comboCount = 0; // Tracks consecutive matches
+
     private List<int> cardIDs = new List<int>();
 
     private void Start()
     {
+        comboText.gameObject.SetActive(false);
+        comboText.transform.localScale = Vector3.zero;
         rows = PlayerPrefs.GetInt("Rows", 2);
         columns = PlayerPrefs.GetInt("Columns", 2);
         GenerateCardIDs();
@@ -105,6 +111,8 @@ public class GameManager : MonoBehaviour
     private IEnumerator CheckMatch()
     {
         IsProcessing = true;
+
+        // Wait a short time so player sees the flipped cards
         yield return new WaitForSeconds(0.5f);
 
         CardController first = flippedCards[0];
@@ -112,33 +120,46 @@ public class GameManager : MonoBehaviour
 
         if (first.cardID == second.cardID)
         {
-            score++;
-            
+            // ✅ Match found
+            comboCount++; // Increase combo
+
+            int scoreIncrement = 1 + (comboCount - 1); // Base 1 + combo bonus
+            score += scoreIncrement;
+
             first.SetMatched();
             second.SetMatched();
 
+            // Play match sound
             audioSource?.PlayOneShot(matchSound);
 
-            
+            // Show animated combo if combo >1
+            ShowCombo(comboCount);
         }
         else
         {
-            
-            first.Flip();
-            second.Flip();
+            // ❌ Mismatch resets combo
+            comboCount = 0;
 
-            // Punch animation
+            // Punch animation for mismatch
             first.PunchAnimation();
             second.PunchAnimation();
 
+            // Flip cards back
+            first.Flip();
+            second.Flip();
+
+            // Play mismatch sound
             audioSource?.PlayOneShot(mismatchSound);
         }
 
-        flippedCards.Clear();
+        flippedCards.Clear(); // Clear immediately for continuous flipping
         IsProcessing = false;
+
         UpdateUI();
         CheckGameOver();
     }
+
+
 
     void UpdateUI()
     {
@@ -173,4 +194,29 @@ public class GameManager : MonoBehaviour
     {
         SceneManager.LoadScene("MainMenu");
     }
+    private void ShowCombo(int combo)
+    {
+        if (combo <= 1)
+            return;
+
+        comboText.text = "x" + combo;
+        comboText.gameObject.SetActive(true);
+
+        // Reset scale & alpha
+        comboText.transform.localScale = Vector3.zero;
+        comboText.alpha = 1;
+
+        // Animate scale punch
+        comboText.transform.DOScale(1.5f, 0.3f).SetEase(Ease.OutBack)
+            .OnComplete(() =>
+            {
+                // Fade out after 0.5s
+                comboText.DOFade(0, 0.5f).SetDelay(0.5f).OnComplete(() =>
+                {
+                    comboText.gameObject.SetActive(false);
+                    comboText.alpha = 1; // Reset alpha for next time
+                });
+            });
+    }
+
 }

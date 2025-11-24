@@ -56,7 +56,11 @@ public class MainMenuController : MonoBehaviour
         }
 
         int total = rows * cols;
-
+        if (rows == 0 || cols == 0)
+        {
+            errorText.text = "Rows and Columns cannot be 0.";
+            return;
+        }
         if (total > 30)
         {
             errorText.text = "Total cards cannot exceed 30.";
