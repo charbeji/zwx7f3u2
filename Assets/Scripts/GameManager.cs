@@ -4,21 +4,26 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using DG.Tweening;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
+    [Header("Card Sprites")]
+    public Sprite[] cardFrontSprites; // 15 sprites
+    public Sprite cardBackSprite;     // 1 back sprite
+
     [Header("References")]
     public GameObject cardPrefab;
     public Transform gridParent;
     public TMP_Text scoreText;
+    public TMP_Text gameOverScoreText;
     public TMP_Text turnsText;
-    public TMP_Text comboText; // optional combo display
     public AudioSource audioSource;
     public AudioClip flipSound;
     public AudioClip matchSound;
     public AudioClip mismatchSound;
     public AudioClip gameOverSound;
-
+    public GameObject Panel_GameOver;
     [HideInInspector] public bool IsProcessing = false;
 
     private List<CardController> flippedCards = new List<CardController>();
@@ -68,9 +73,17 @@ public class GameManager : MonoBehaviour
             GameObject cardObj = Instantiate(cardPrefab, gridParent);
             CardController card = cardObj.GetComponent<CardController>();
             card.cardID = cardIDs[i];
+        
+            // Assign front/back images
+            if (cardFrontSprites != null && cardFrontSprites.Length > card.cardID)
+            {
+                card.frontImage.sprite = cardFrontSprites[card.cardID];
+            }
+            if (cardBackSprite != null)
+            {
+                card.backImage.sprite = cardBackSprite;
+            }
 
-            // Optional: assign front image here based on cardID
-            // Example: card.frontImage.sprite = cardSprites[card.cardID];
         }
     }
 
@@ -147,7 +160,17 @@ public class GameManager : MonoBehaviour
         audioSource?.PlayOneShot(gameOverSound);
         Debug.Log("Game Over! Final Score: " + score + " Turns: " + turns);
 
-        // Optional: show GameOver panel here
-        // Panel_GameOver.SetActive(true);
+        
+        Panel_GameOver.SetActive(true);
+        gameOverScoreText.text= scoreText.text;
+    }
+    public void ResetGame()
+    {
+        // Reload the scene
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+    public void ReturnToMainMenu()
+    {
+        SceneManager.LoadScene("MainMenu");
     }
 }
