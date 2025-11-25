@@ -47,26 +47,31 @@ public class MainMenuController : MonoBehaviour
     // --- Difficulty Buttons ---
     public void SetVeryEasy()
     {
+        PlayerPrefs.SetString("HasSave", "0");
         SetDifficulty(2, 2);
     }
 
     public void SetEasy()
     {
+        PlayerPrefs.SetString("HasSave", "0");
         SetDifficulty(2, 3);
     }
 
     public void SetMedium()
     {
+        PlayerPrefs.SetString("HasSave", "0");
         SetDifficulty(3, 4);
     }
 
     public void SetHard()
     {
+        PlayerPrefs.SetString("HasSave", "0");
         SetDifficulty(4, 4);
     }
 
     public void SetVeryHard()
     {
+        PlayerPrefs.SetString("HasSave", "0");
         SetDifficulty(5, 6); // 30 cards max
     }
 
