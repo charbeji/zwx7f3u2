@@ -12,8 +12,8 @@ public class GameManager : MonoBehaviour
     public TMP_Text comboText;
 
     [Header("Card Sprites")]
-    public Sprite[] cardFrontSprites; // 15 sprites
-    public Sprite cardBackSprite;     // 1 back sprite
+    public Sprite[] cardFrontSprites;
+    public Sprite cardBackSprite;
 
     [Header("References")]
     public GameObject cardPrefab;
@@ -27,13 +27,14 @@ public class GameManager : MonoBehaviour
     public AudioClip mismatchSound;
     public AudioClip gameOverSound;
     public GameObject Panel_GameOver;
-    [HideInInspector] public bool IsProcessing = false;
 
     private List<CardController> flippedCards = new List<CardController>();
+    private bool comparing = false; // prevents overlap of comparison logic
+
     private int rows, columns;
     private int score = 0;
     private int turns = 0;
-    private int comboCount = 0; // Tracks consecutive matches
+    private int comboCount = 0;
 
     private List<int> cardIDs = new List<int>();
     private List<bool> matchedStateList = new List<bool>();
@@ -44,7 +45,7 @@ public class GameManager : MonoBehaviour
         comboText.gameObject.SetActive(false);
         comboText.transform.localScale = Vector3.zero;
 
-        // If a save exists, load it — otherwise generate new
+        // LOAD SYSTEM
         if (SaveSystem.HasSave())
         {
             loadingSavedGame = true;
@@ -58,22 +59,18 @@ public class GameManager : MonoBehaviour
             cardIDs = SaveSystem.LoadCardIDs();
             matchedStateList = SaveSystem.LoadMatchedStates();
 
-            // Safety: if load returned empty lists (corrupt), fallback to new board
-            if (cardIDs == null || cardIDs.Count == 0 || cardIDs.Count != rows * columns)
-            {
+            if (cardIDs == null || cardIDs.Count != rows * columns)
                 loadingSavedGame = false;
-            }
+
             if (matchedStateList == null || matchedStateList.Count != rows * columns)
-            {
-                // initialize matched list if missing or wrong size
                 matchedStateList = Enumerable.Repeat(false, rows * columns).ToList();
-            }
         }
 
         if (!loadingSavedGame)
         {
             rows = PlayerPrefs.GetInt("Rows", 2);
             columns = PlayerPrefs.GetInt("Columns", 2);
+
             GenerateCardIDs();
             matchedStateList = Enumerable.Repeat(false, rows * columns).ToList();
         }
@@ -82,12 +79,12 @@ public class GameManager : MonoBehaviour
         UpdateUI();
     }
 
-    // Generate pairs of cards and shuffle
     void GenerateCardIDs()
     {
-        int totalCards = rows * columns;
-        cardIDs.Clear();
-        int pairs = totalCards / 2;
+        int total = rows * columns;
+        int pairs = total / 2;
+
+        cardIDs = new List<int>();
 
         for (int i = 0; i < pairs; i++)
         {
@@ -95,19 +92,18 @@ public class GameManager : MonoBehaviour
             cardIDs.Add(i);
         }
 
-        // Shuffle
+        // shuffle
         for (int i = 0; i < cardIDs.Count; i++)
         {
+            int r = Random.Range(0, cardIDs.Count);
             int temp = cardIDs[i];
-            int randomIndex = Random.Range(0, cardIDs.Count);
-            cardIDs[i] = cardIDs[randomIndex];
-            cardIDs[randomIndex] = temp;
+            cardIDs[i] = cardIDs[r];
+            cardIDs[r] = temp;
         }
     }
 
     void GenerateGrid()
     {
-        // Clear any existing children just in case (useful when resetting)
         for (int i = gridParent.childCount - 1; i >= 0; i--)
             Destroy(gridParent.GetChild(i).gameObject);
 
@@ -116,113 +112,95 @@ public class GameManager : MonoBehaviour
             GameObject cardObj = Instantiate(cardPrefab, gridParent);
             CardController card = cardObj.GetComponent<CardController>();
 
-            // record index for save/load
             card.index = i;
             card.cardID = cardIDs[i];
 
-            // Assign front/back images
-            if (cardFrontSprites != null && cardFrontSprites.Length > card.cardID)
-            {
+            if (cardFrontSprites.Length > card.cardID)
                 card.frontImage.sprite = cardFrontSprites[card.cardID];
-            }
-            if (cardBackSprite != null)
-            {
-                card.backImage.sprite = cardBackSprite;
-            }
 
-            // If loading saved game and this card was matched, restore instant matched state
-            if (loadingSavedGame && matchedStateList != null && matchedStateList.Count > i && matchedStateList[i])
-            {
+            card.backImage.sprite = cardBackSprite;
+
+            if (loadingSavedGame && matchedStateList[i])
                 card.SetMatchedInstant();
-            }
         }
     }
 
     public void CardFlipped(CardController card)
     {
+        audioSource?.PlayOneShot(flipSound);
         flippedCards.Add(card);
 
-        // Play flip sound
-        audioSource?.PlayOneShot(flipSound);
-
-        if (flippedCards.Count == 2)
+        // Only check when 2 are flipped AND no comparison is happening
+        if (!comparing && flippedCards.Count >= 2)
         {
-            turns++;
-            UpdateUI();
             StartCoroutine(CheckMatch());
         }
     }
 
     private IEnumerator CheckMatch()
     {
-        IsProcessing = true;
+        comparing = true;
 
-        // Wait a short time so player sees the flipped cards
-        yield return new WaitForSeconds(0.5f);
+        // pick first 2 cards
+        CardController c1 = flippedCards[0];
+        CardController c2 = flippedCards[1];
 
-        CardController first = flippedCards[0];
-        CardController second = flippedCards[1];
+        turns++;
+        UpdateUI();
 
-        if (first.cardID == second.cardID)
+        yield return new WaitForSeconds(0.4f);
+
+        if (c1.cardID == c2.cardID)
         {
-            // ✅ Match found
-            comboCount++; // Increase combo
+            comboCount++;
+            score += 1 + (comboCount - 1);
 
-            int scoreIncrement = 1 + (comboCount - 1); // Base 1 + combo bonus
-            score += scoreIncrement;
+            c1.SetMatched();
+            c2.SetMatched();
 
-            first.SetMatched();
-            second.SetMatched();
+            matchedStateList[c1.index] = true;
+            matchedStateList[c2.index] = true;
 
-            // Mark matched states for saving
-            matchedStateList[first.index] = true;
-            matchedStateList[second.index] = true;
-
-            // Play match sound
             audioSource?.PlayOneShot(matchSound);
-
-            // Show animated combo if combo >1
             ShowCombo(comboCount);
         }
         else
         {
-            // ❌ Mismatch resets combo
             comboCount = 0;
 
-            // Punch animation for mismatch
-            first.PunchAnimation();
-            second.PunchAnimation();
+            c1.PunchAnimation();
+            c2.PunchAnimation();
 
-            // Flip cards back
-            first.Flip();
-            second.Flip();
+            c1.Flip();
+            c2.Flip();
 
-            // Play mismatch sound
             audioSource?.PlayOneShot(mismatchSound);
         }
 
-        flippedCards.Clear(); // Clear immediately for continuous flipping
-        IsProcessing = false;
+        // Remove only the two processed cards, leave the rest for continuous flipping
+        flippedCards.RemoveAt(0);
+        flippedCards.RemoveAt(0);
 
-        UpdateUI();
-
-        // Autosave after each comparison so player can resume later
         SaveState();
-
         CheckGameOver();
+
+        comparing = false;
+
+        // If already 2 waiting, process next automatically
+        if (flippedCards.Count >= 2)
+            StartCoroutine(CheckMatch());
     }
 
     public void SaveState()
     {
-        // Build matched state list from current board in case anything changed
         matchedStateList = new List<bool>();
+
         for (int i = 0; i < gridParent.childCount; i++)
         {
             var card = gridParent.GetChild(i).GetComponent<CardController>();
-            matchedStateList.Add(card != null && card.IsMatched());
+            matchedStateList.Add(card.IsMatched());
         }
 
-        // Save cardIDs (order) and matched states
         SaveSystem.SaveGame(rows, columns, score, turns, comboCount, cardIDs, matchedStateList);
     }
 
@@ -236,16 +214,11 @@ public class GameManager : MonoBehaviour
     {
         foreach (Transform t in gridParent)
         {
-            CardController card = t.GetComponent<CardController>();
-            if (!card.IsMatched())
+            if (!t.GetComponent<CardController>().IsMatched())
                 return;
         }
 
-        // Game over logic
         audioSource?.PlayOneShot(gameOverSound);
-        Debug.Log("Game Over! Final Score: " + score + " Turns: " + turns);
-
-        // Clear save - player finished the game
         SaveSystem.ClearSave();
 
         Panel_GameOver.SetActive(true);
@@ -254,9 +227,9 @@ public class GameManager : MonoBehaviour
 
     public void ResetGame()
     {
-        // Reload the scene
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
+
     public void ReturnToMainMenu()
     {
         SceneManager.LoadScene("MainMenu");
@@ -264,26 +237,22 @@ public class GameManager : MonoBehaviour
 
     private void ShowCombo(int combo)
     {
-        if (combo <= 1)
-            return;
+        if (combo <= 1) return;
 
         comboText.text = "x" + combo;
         comboText.gameObject.SetActive(true);
 
-        // Reset scale & alpha
         comboText.transform.localScale = Vector3.zero;
         comboText.alpha = 1;
 
-        // Animate scale punch
-        comboText.transform.DOScale(1.5f, 0.3f).SetEase(Ease.OutBack)
-            .OnComplete(() =>
+        comboText.transform.DOScale(1.5f, 0.3f).SetEase(DG.Tweening.Ease.OutBack)
+        .OnComplete(() =>
+        {
+            comboText.DOFade(0, 0.5f).SetDelay(0.5f).OnComplete(() =>
             {
-                // Fade out after 0.5s
-                comboText.DOFade(0, 0.5f).SetDelay(0.5f).OnComplete(() =>
-                {
-                    comboText.gameObject.SetActive(false);
-                    comboText.alpha = 1; // Reset alpha for next time
-                });
+                comboText.gameObject.SetActive(false);
+                comboText.alpha = 1;
             });
+        });
     }
 }
