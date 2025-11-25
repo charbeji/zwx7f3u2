@@ -40,7 +40,6 @@ ExportedObj/
 *.VC.db
 
 # Unity build results
-*.apk
 *.aab
 *.unitypackage
 *.app
