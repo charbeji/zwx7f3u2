@@ -58,11 +58,6 @@ public class CardController : MonoBehaviour
         transform.localScale = Vector3.zero;
     }
 
-    public void PunchAnimation()
-    {
-        transform.DOPunchPosition(new Vector3(20, 0, 0), 0.3f, 10, 1);
-        transform.DOPunchRotation(new Vector3(0, 0, 10), 0.3f, 10, 1);
-    }
 
     public bool IsMatched() => isMatched;
 }

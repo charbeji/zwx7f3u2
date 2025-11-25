@@ -122,7 +122,11 @@ public class GameManager : MonoBehaviour
 
             if (loadingSavedGame && matchedStateList[i])
                 card.SetMatchedInstant();
+            
+
         }
+        gridParent.GetComponent<GridAutoResizer>().SetGrid(rows, columns);
+
     }
 
     public void CardFlipped(CardController card)
@@ -168,8 +172,7 @@ public class GameManager : MonoBehaviour
         {
             comboCount = 0;
 
-            c1.PunchAnimation();
-            c2.PunchAnimation();
+            
 
             c1.Flip();
             c2.Flip();
